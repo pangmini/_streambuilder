@@ -1,0 +1,660 @@
+# _streambuilder
+import 'dart:async';
+import 'dart:convert';
+import 'package:bottom_navy_bar/bottom_navy_bar.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'dart:math';
+import 'package:flutter/services.dart';
+import 'package:group_list_view/group_list_view.dart';
+
+//final List<Map<String, String>> updateData1 = [];
+
+class matchingPage extends StatefulWidget {
+  @override
+  _matchingPageState createState() => _matchingPageState();
+}
+
+class _matchingPageState extends State<matchingPage> {
+  String _generatedCode = '';
+  String joinTeamCode = '';
+  String sid = '';
+  String department = '';
+  String name = '';
+  String university = "";
+  String userGender = '';
+  String useruniversity = '';
+  String usertid = '';
+  String usersid = '';
+  String userdepartment = '';
+  String username = '';
+  final _codeController1 = TextEditingController();
+  final _codeController = TextEditingController();
+  final _joinTeamController = TextEditingController();
+  int _currentIndex = 1;
+  late PageController _pageController;
+  final Map<String, List> _elements = {
+    '목포대학교': [],
+    '목포과학대학교': [],
+    '목포해양대학교': [],
+    '초당대학교': [],
+    '목포가톨릭대학교': [],
+    '한국폴리텍V대학교': [],
+  };
+
+//-----------------------------------------------------------------------------------------------------------------
+//-------------------------이 점선 안에 함수는 매칭을 위한 함수이다.--------------------------------------------------
+
+  Future<void> _matchTeam() async {
+    final teamRef = FirebaseFirestore.instance.collection('team');
+    final snapshot = await teamRef.get();
+    final FirebaseAuth _auth = FirebaseAuth.instance;
+    final user = await _auth.currentUser!;
+    String uid = user.uid;
+    // 먼저 user collection에서 사용자의 gender 데이터를 불러옵니다.
+    final userRef = FirebaseFirestore.instance.collection('user').doc(uid);
+    final userSnapshot = await userRef.get();
+    final userData = userSnapshot.data();
+    String userGender = userData!['gender'];
+
+    setState(() {
+      for (var document in snapshot.docs) {
+        final university = document.data()['university'];
+        final department = document.data()['department'];
+        final group = document.data()['group'];
+
+        if (group == userGender) {
+          continue;
+        }
+
+        if (_elements.containsKey(university)) {
+          _elements[university]!.add(department);
+        } else {
+          _elements[university] = [department];
+        }
+      }
+    });
+  }
+//-------------------------이 점선 안에 함수는 매칭을 위한 함수이다.--------------------------------------------------
+//-----------------------------------------------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------------------------------------------
+//-------------------------이 점선 안에 함수는 팀 참가를 위한 함수이다.------------------------------------------------
+  void _joinTeam(String code) async {
+    final FirebaseAuth _auth = FirebaseAuth.instance;
+    final user = await _auth.currentUser!;
+    String uid = user.uid;
+    // 먼저 user collection에서 사용자의 gender 데이터를 불러옵니다.
+    var userRef = FirebaseFirestore.instance.collection('user').doc(uid);
+    final userSnapshot = await userRef.get();
+    final userData = userSnapshot.data();
+    String userGender = userData!['gender'];
+    String tid = userData['tid'];
+    String usertid = userData['tid'];
+    String usersid = userData['sid'];
+    String useruniversity = userData['university'];
+    String userdepartment = userData['department'];
+    String username = userData['name'];
+    _joinTeamController.text = tid;
+
+// team collection의 code에 해당하는 데이터를 불러옵니다.
+    final teamRef = FirebaseFirestore.instance.collection('team').doc(code);
+    final teamSnapshot = await teamRef.get();
+// code에 해당하는 team이 존재하지 않으면 invalid code라는 메시지를 보여줍니다.
+    if (!teamSnapshot.exists) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text("코드가 일치하지 않습니다!"),
+      ));
+      return;
+    }
+    // code에 해당하는 team의 gender group 데이터를 불러옵니다.
+    final teamData = teamSnapshot.data();
+    String teamGenderGroup = teamData!['group'];
+// user의 gender와 team의 gender group이 일치하지 않으면 팀 가입을 허용하지 않습니다.
+    if (userGender != teamGenderGroup) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text("혼성 그룹으로 참여할 수 없습니다!"),
+      ));
+      return;
+    }
+    final members = {
+      "uid": uid,
+      "name": username,
+      "university": useruniversity,
+      "department": userdepartment,
+      "sid": usersid,
+    };
+
+    final json = {
+      'members': FieldValue.arrayUnion([members]),
+    };
+
+    userRef = FirebaseFirestore.instance.collection('user').doc(uid);
+    final json1 = {
+      'tid': code,
+      'jointeam': true,
+    };
+
+    await userRef.update(json1);
+    await teamRef.update(json);
+    _readUserInfo();
+  }
+//-------------------------이 점선 안에 함수는 팀 참가를 위한 함수이다.------------------------------------------------
+//-----------------------------------------------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------------------------------------------
+//-------------------------이 점선 안에 함수는 팀 모집을 위한 함수이다.------------------------------------------------
+  void _readUserInfo() async {
+    final FirebaseAuth _auth = FirebaseAuth.instance;
+    final user = await _auth.currentUser!;
+    var ref = FirebaseFirestore.instance.collection('user').doc(user.uid);
+    var snapshot = await ref.get();
+    userGender = snapshot.data()!['gender'];
+    String tid = snapshot.data()!['tid'];
+    sid = snapshot.data()!['sid'];
+    department = snapshot.data()!['department'];
+    name = snapshot.data()!['name'];
+    university = snapshot.data()!['university'];
+    _joinTeamController.text = tid;
+  }
+
+  void _saveTeamInfo(String code) async {
+    final FirebaseAuth _auth = FirebaseAuth.instance;
+    final user = await _auth.currentUser!;
+    String uid = user.uid;
+
+    var ref = FirebaseFirestore.instance.collection('user').doc(uid);
+    DocumentSnapshot snapshot = await ref.get();
+    final userData = snapshot.data();
+    final members = {
+      "uid": uid,
+      "name": name,
+      "university": university,
+      "department": department,
+      "sid": sid,
+    };
+
+    String timeStamp = DateTime.now().toIso8601String();
+    ref = FirebaseFirestore.instance.collection('team').doc(code);
+
+    final json1 = {
+      'Owner uid': uid,
+      'tid': _codeController.text,
+      'members': [members],
+      'created At': timeStamp,
+      "department": department,
+      "university": university,
+    };
+    if (userGender == 'male') {
+      json1['group'] = 'male';
+    } else if (userGender == 'female') {
+      json1['group'] = 'female';
+    }
+    await ref.set(json1, SetOptions(merge: true));
+
+    ref = FirebaseFirestore.instance.collection('user').doc(uid);
+    final json = {
+      'tid': code,
+      'jointeam': true,
+    };
+
+    await ref.update(json);
+    _readUserInfo();
+  }
+
+//-------------------------이 점선 안에 함수는 팀 모집을 위한 함수이다.------------------------------------------------
+//-----------------------------------------------------------------------------------------------------------------
+
+  String generateCode() {
+    final _random = Random.secure();
+    return (_random.nextInt(0xFFFFFFFF).toRadixString(16) +
+            _random.nextInt(0xFFFFFFFF).toRadixString(16))
+        .toUpperCase();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _generatedCode = generateCode();
+    _codeController.text = _generatedCode;
+    _pageController = PageController(initialPage: 1);
+    _readUserInfo();
+    _matchTeam();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+//-----------------------------------------------------------------------------------------------------------------
+//-------------------------이 점선 안에 함수는 팝업창(팀 모집)을 위한 함수이다.------------------------------------------------
+  void _showMyDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text("고유코드 생성"),
+          content: Text("공유해주세요"),
+          actions: <Widget>[
+            TextField(
+              controller: _codeController,
+              decoration: InputDecoration(
+                labelText: "Generated Code",
+              ),
+              readOnly: true,
+            ),
+            CupertinoButton(
+              child: Text("COPY"),
+              padding: EdgeInsets.zero,
+              color: Colors.black,
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: _codeController.text));
+              },
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: ElevatedButton(
+                    child: Text("만들기"),
+                    onPressed: () {
+                      _saveTeamInfo(_codeController.text);
+                      Navigator.of(context).pop();
+                    },
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: ElevatedButton(
+                    child: Text("취소"),
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+//-------------------------이 점선 안에 함수는 팝업창(팀 모집)을 위한 함수이다.------------------------------------------------
+//-----------------------------------------------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------------------------------------------
+//-------------------------이 점선 안에 함수는 팝업창(팀 참가)을 위한 함수이다.-----------------------------------------
+  void _showMyDialog1() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text("팀 참가"),
+          content: Text("공유 받은 코드를 넣어주세요."),
+          actions: <Widget>[
+            TextField(
+              controller: _codeController1,
+              decoration: InputDecoration(
+                labelText: "Enter Code",
+              ),
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: ElevatedButton(
+                    child: Text("참가"),
+                    onPressed: () {
+                      _joinTeam(_codeController1.text);
+                      Navigator.of(context).pop();
+                    },
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: ElevatedButton(
+                    child: Text("취소"),
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+//-------------------------이 점선 안에 함수는 팝업창(팀 참가)을 위한 함수이다.------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------------------------------------------
+//-------------------------이 점선 안에 함수는 팝업창(신청 하기)을 위한 함수이다.-----------------------------------------
+  void _showMyDialog2() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text("신청 하기"),
+          content: Text("정말로 신청을 하시겠습니까?"),
+          actions: <Widget>[],
+        );
+      },
+    );
+  }
+
+//-------------------------이 점선 안에 함수는 팝업창(신청하기)을 위한 함수이다.------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------------------------------------------
+//-------------------------이 점선 안에 함수는 프론트앤드를 위한 함수이다.---------------------------------------------
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text("과    팅")),
+      body: SizedBox.expand(
+        child: PageView(
+          controller: _pageController,
+          onPageChanged: (index) {
+            setState(() => _currentIndex = index);
+          },
+          children: <Widget>[
+            Container(
+              child: GroupListView(
+                sectionsCount: _elements.keys.toList().length,
+                countOfItemInSection: (int section) {
+                  return _elements.values.toList()[section].length;
+                },
+                itemBuilder: _itemBuilder,
+                groupHeaderBuilder: (BuildContext context, int section) {
+                  return Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+                    child: Text(
+                      _elements.keys.toList()[section],
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                    ),
+                  );
+                },
+                separatorBuilder: (context, index) => SizedBox(height: 10),
+                sectionSeparatorBuilder: (context, section) =>
+                    SizedBox(height: 10),
+              ),
+            ),
+            Column(
+              children: [
+                Expanded(
+                  flex: 0,
+                  child: Row(
+                    children: [
+                      // 팀 모집
+                      Expanded(
+                        flex: 1,
+                        child: Container(
+                          padding: EdgeInsets.all(8.0),
+                          child: ElevatedButton(
+                            onPressed: _showMyDialog,
+                            child: Text("팀 모집"),
+                          ),
+                        ),
+                      ),
+                      // 팀 참가
+                      Expanded(
+                        flex: 1,
+                        child: Container(
+                          padding: EdgeInsets.all(8.0),
+                          child: ElevatedButton(
+                            onPressed: _showMyDialog1,
+                            child: Text("팀 참가"),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                TextField(
+                  controller: _joinTeamController,
+                  decoration: InputDecoration(
+                    labelText: "Generated Code",
+                  ),
+                  readOnly: true,
+                ),
+                Expanded(
+                  child: Container(
+                      padding: EdgeInsets.all(1.0), child: NewWidget()),
+                ),
+              ],
+            ),
+            Container(
+              color: Colors.green,
+            ),
+          ],
+        ),
+      ),
+      bottomNavigationBar: BottomNavyBar(
+        selectedIndex: _currentIndex,
+        onItemSelected: (index) {
+          setState(() => _currentIndex = index);
+          _pageController.jumpToPage(index);
+        },
+        items: <BottomNavyBarItem>[
+          BottomNavyBarItem(title: Text('매칭'), icon: Icon(Icons.home)),
+          BottomNavyBarItem(title: Text('팀 현황'), icon: Icon(Icons.apps)),
+          BottomNavyBarItem(
+              title: Text('신청 현황'), icon: Icon(Icons.chat_bubble)),
+        ],
+      ),
+    );
+  }
+
+//-------------------------이 점선 안에 함수는 프론트앤드를 위한 함수이다.------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------------------------------------------
+//-------------------------이 점선 안에 함수는 아이템빌더를 위한 함수이다.-----------------------------------------
+
+  Widget _itemBuilder(BuildContext context, IndexPath index) {
+    String user = _elements.values.toList()[index.section][index.index];
+    return RefreshIndicator(
+      onRefresh: _matchTeam,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8.0),
+        child: Card(
+          elevation: 8,
+          child: ListTile(
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 18, vertical: 10.0),
+              leading: CircleAvatar(
+                child: Text(
+                  _getInitials(user),
+                  style: TextStyle(color: Colors.white, fontSize: 18),
+                ),
+                backgroundColor: Colors.black,
+              ),
+              title: Text(
+                _elements.values.toList()[index.section][index.index],
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w400),
+              ),
+              trailing: Column(
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      Icons.arrow_forward_ios,
+                      size: 28.0,
+                    ),
+                    onPressed: _showMyDialog2,
+                  ),
+                  Text(
+                    "신청하기",
+                    style: TextStyle(color: Colors.grey, fontSize: 7),
+                  ),
+                ],
+              )),
+        ),
+      ),
+    );
+  }
+
+  String _getInitials(String user) {
+    var buffer = StringBuffer();
+    var split = user.split(" ");
+    for (var s in split) buffer.write(s[0]);
+
+    return buffer.toString().substring(0, split.length);
+  }
+
+//-------------------------이 점선 안에 함수는 아이템빌더를 위한 함수이다.------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------------
+}
+
+class NewWidget extends StatefulWidget {
+  const NewWidget({
+    super.key,
+    String? name2,
+    String? university2,
+    String? department2,
+  });
+
+  @override
+  State<NewWidget> createState() => _NewWidgetState();
+}
+
+class _NewWidgetState extends State<NewWidget> {
+//-----------------------------------------------------------------------------------------------------------------
+
+  final _controller = StreamController<List<Map<String, String>>>();
+
+  void _matchTeam1() async {
+    final FirebaseAuth _auth = FirebaseAuth.instance;
+    final user1 = _auth.currentUser!;
+    final uref1 = FirebaseFirestore.instance.collection('user').doc(user1.uid);
+    final userSnapshot1 = await uref1.get();
+    final userData1 = userSnapshot1.data();
+    String usertid = userData1!['tid'];
+    if (usertid == '') {
+      _controller.sink.add([]);
+    } else {
+      final teamRef =
+          FirebaseFirestore.instance.collection('team').doc(usertid);
+      final subscription = teamRef.snapshots().listen((snapshot) {
+        final teamData = snapshot.data();
+        //snapshot.data()!['members'];
+        List<Map<String, String>> updateData1 = [];
+        for (var member in teamData!['members']) {
+          String name = member['name'];
+          String university = member['university'];
+          String department = member['department'];
+          String sid = member['sid'];
+          updateData1.add({
+            'name': name,
+            'university': university,
+            "department": department,
+            "sid": sid,
+          });
+        }
+        print(updateData1);
+        _controller.sink.add(updateData1);
+      });
+    }
+  }
+
+
+//-------------------------이 점선 안에 함수는 매칭을 위한 함수이다.--------------------------------------------------
+  @override
+  void debugFillProperties(DiagnosticPropertiesBuilder properties) {
+    super.debugFillProperties(properties);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _matchTeam1();
+    return StreamBuilder<List<Map<String, String>>>(
+      stream: _controller.stream,
+      builder: (context, snapshot) {
+        print('snapshot.data : $snapshot');
+        if (snapshot.hasData) {
+          List<Map<String, String>>? updateData1 = snapshot.data;
+          return ListView.builder(
+            itemCount: updateData1!.length,
+            itemBuilder: (BuildContext context, int index) {
+              var datum = snapshot.data![index];
+              return Container(
+                margin: EdgeInsets.all(10.0),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey),
+                  borderRadius: BorderRadius.circular(10.0),
+                ),
+                child: Padding(
+                  padding: EdgeInsets.all(10.0),
+                  child: Column(
+                    children: <Widget>[
+                      Container(
+                        width: double.infinity,
+                        child: Text(
+                          datum['name']!,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18.0,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                      SizedBox(height: 10.0),
+                      Container(
+                        width: double.infinity,
+                        child: Text(
+                          datum['sid']!,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18.0,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                      SizedBox(height: 10.0),
+                      Container(
+                        width: double.infinity,
+                        child: Text(
+                          datum['university']!,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16.0,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                      SizedBox(height: 10.0),
+                      Container(
+                        width: double.infinity,
+                        child: Text(
+                          datum['department']!,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16.0,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        } else {
+          return Center(child: CircularProgressIndicator());
+        }
+      },
+    );
+  }
+}
