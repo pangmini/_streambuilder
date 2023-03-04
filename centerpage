@@ -1,0 +1,161 @@
+class NewWidget extends StatefulWidget {
+  const NewWidget({
+    super.key,
+    String? name2,
+    String? university2,
+    String? department2,
+  });
+
+  @override
+  State<NewWidget> createState() => _NewWidgetState();
+}
+
+class _NewWidgetState extends State<NewWidget> {
+  final updateData1 = [];
+  final StreamController<List<Map<String, String>>> _controller =
+      StreamController<List<Map<String, String>>>();
+
+  @override
+  void initState() {
+    super.initState();
+    _matchTeam1();
+  }
+
+  void _matchTeam1() async {
+    final FirebaseAuth _auth = FirebaseAuth.instance;
+    final user1 = _auth.currentUser!;
+    final uref1 = FirebaseFirestore.instance.collection('user').doc(user1.uid);
+    final userSnapshot1 = await uref1.get();
+    final userData1 = userSnapshot1.data();
+    String usertid = userData1!['tid'];
+    if (usertid == '') {
+      _controller.sink.add([]);
+    } else {
+      final teamRef =
+          FirebaseFirestore.instance.collection('team').doc(usertid);
+      final subscription = teamRef.snapshots().listen((snapshot) {
+        final teamData = snapshot.data();
+        snapshot.data()!['members'];
+        List<Map<String, String>> updateData1 = [];
+        for (var member in teamData!['members']) {
+          String name = member['name'];
+          String university = member['university'];
+          String department = member['department'];
+          String sid = member['sid'];
+          updateData1.add({
+            'name': name,
+            'university': university,
+            "department": department,
+            "sid": sid,
+          });
+        }
+        _controller.sink.add(updateData1);
+      });
+    }
+  }
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>> getDataStream() {
+    final FirebaseAuth _auth = FirebaseAuth.instance;
+    final user1 = _auth.currentUser!;
+    final uref1 = FirebaseFirestore.instance.collection('user').doc(user1.uid);
+    final usersnapshot2 = uref1.get();
+    String? tid;
+    usersnapshot2.then((ds) {
+      tid = ds.data()!['tid'];
+    });
+    final teamRef = FirebaseFirestore.instance.collection('team').doc(tid);
+
+    return teamRef.snapshots();
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+    _controller.close();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder(
+      stream: _controller.stream, // 수정된 부분: _controller의 stream 사용
+      builder: (BuildContext context,
+          AsyncSnapshot<List<Map<String, String>>> snapshot) {
+        if (snapshot.hasData) {
+          print(getDataStream());
+          return ListView.builder(
+            itemCount: snapshot
+                .data!.length, // 수정된 부분: updateData1 대신 snapshot.data 사용
+            itemBuilder: (BuildContext context, int index) {
+              print(snapshot.data); // 수정된 부분: updateData1 대신 snapshot.data 사용
+              var datum = snapshot
+                  .data![index]; // 수정된 부분: updateData1 대신 snapshot.data 사용
+              return Container(
+                margin: EdgeInsets.all(10.0),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey),
+                  borderRadius: BorderRadius.circular(10.0),
+                ),
+                child: Padding(
+                  padding: EdgeInsets.all(10.0),
+                  child: Column(
+                    children: <Widget>[
+                      Container(
+                        width: double.infinity,
+                        child: Text(
+                          datum['name']!,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18.0,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                      SizedBox(height: 10.0),
+                      Container(
+                        width: double.infinity,
+                        child: Text(
+                          datum['sid']!,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18.0,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                      SizedBox(height: 10.0),
+                      Container(
+                        width: double.infinity,
+                        child: Text(
+                          datum['university']!,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16.0,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                      SizedBox(height: 10.0),
+                      Container(
+                        width: double.infinity,
+                        child: Text(
+                          datum['department']!,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16.0,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        } else {
+          return CircularProgressIndicator();
+        }
+      },
+    );
+  }
+}
