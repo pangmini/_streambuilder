@@ -1,0 +1,290 @@
+//-------------------------이 점선 안에 함수는 신청현황을 위한 함수이다.--------------------------------------------------
+
+import 'dart:async';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import 'package:group_list_view/group_list_view.dart';
+import 'package:univproject/Main_function/auth_service.dart';
+
+class RightWidget extends StatefulWidget {
+  @override
+  State<RightWidget> createState() => _RightWidgetState();
+}
+
+class _RightWidgetState extends State<RightWidget> {
+  late PageController _pageController;
+  final _elements1 = {
+    '신청 현황': [],
+    '새로운 신청': [],
+  };
+  StreamController<Map<String, dynamic>> teamStreamController =
+      StreamController<Map<String, dynamic>>.broadcast();
+
+  void subscribeToTeam() {
+    FirebaseFirestore.instance
+        .collection('team')
+        .doc(AuthService.userUid)
+        .snapshots()
+        .listen((snapshot) {
+      if (snapshot.exists) {
+        Map<String, dynamic> data = snapshot.data()!;
+        teamStreamController.sink.add(data['giveteam']);
+        teamStreamController.sink.add(data['reciveteam']);
+      }
+    });
+  }
+
+  void disposeTeamStreamController() {
+    teamStreamController.close();
+  }
+
+  Future<void> _matchTeam3() async {
+    final uref =
+        FirebaseFirestore.instance.collection('user').doc(AuthService.userUid);
+    if (AuthService.userTid != "") {
+      final teamRef = FirebaseFirestore.instance
+          .collection('team')
+          .doc(AuthService.userTid);
+      final snapshot = await teamRef.get();
+      final data = snapshot.data();
+
+      if (data?['recieveTeam'] != "" && data?['recieveTeam'] != null) {
+        for (var document in data!['recieveTeam']) {
+          final university = document['teamid'];
+          _elements1['신청 현황']!.add(university);
+        }
+      } else {
+        print('recieveTeam 필드가 존재하지 않거나 빈 값입니다.');
+      }
+      if (data?['giveTeam'] != "" && data?['giveTeam'] != null) {
+        for (var document in snapshot.data()!['giveTeam']) {
+          final university = document['teamid'];
+          _elements1['새로운 신청']!.add(university);
+        }
+      } else {
+        print('giveTeam 필드가 존재하지 않거나 빈 값입니다.');
+      }
+    } else {
+// tid 필드가 없는 경우에 대한 예외 처리
+      print('tid 필드가 존재하지 않습니다.');
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _matchTeam3();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+//-------------------------이 점선 안에 함수는 팝업창(팀 모집)을 위한 함수이다.------------------------------------------------
+//-----------------------------------------------------------------------------------------------------------------
+  void _updateMatchTidField(matchTid) async {
+    final teamRef =
+        FirebaseFirestore.instance.collection('matchingTeam').doc(matchTid);
+    final snapshot = await teamRef.get();
+    final teamData = snapshot.data();
+    setState(() {
+      for (var member in teamData!['femaleMembers']) {
+        String uid = member['uid'];
+
+        final ref = FirebaseFirestore.instance.collection('user').doc(uid);
+        final json = {
+          'matchTid': matchTid,
+          'matchteam': true,
+        };
+        ref.update(json);
+      }
+      for (var member in teamData['maleMembers']) {
+        String uid = member['uid'];
+
+        final ref = FirebaseFirestore.instance.collection('user').doc(uid);
+        final json = {
+          'matchTid': matchTid,
+          'matchteam': true,
+        };
+        ref.update(json);
+      }
+    });
+  }
+
+  void _finalmatchTeam() async {
+    final teamRef =
+        FirebaseFirestore.instance.collection('team').doc(AuthService.userTid);
+    final teamSnapshot = await teamRef.get();
+    final teamData = teamSnapshot.data();
+    final maleMembers = teamData!['members'];
+    String maleLeader = teamData['ownerUid'];
+    final teamRef2 =
+        FirebaseFirestore.instance.collection('team').doc(selectedUser1);
+    final teamSnapshot2 = await teamRef2.get();
+    final teamData2 = teamSnapshot2.data();
+    final femaleMembers = teamData2!['members'];
+    String femaleLeader = teamData2['ownerUid'];
+    String matchTid = selectedUser1 + AuthService.userTid;
+    var ref =
+        FirebaseFirestore.instance.collection('matchingTeam').doc(matchTid);
+
+    final json = {
+      'maleMembers': maleMembers,
+      'maleLeader': maleLeader,
+      'femaleMembers': femaleMembers,
+      'femaleLeader': femaleLeader
+    };
+    await ref.set(json);
+
+    _updateMatchTidField(matchTid);
+  }
+//-------------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------------------------------------------
+//-------------------------이 점선 안에 함수는 팝업창(신청 현황)을 위한 함수이다.-----------------------------------------
+  void _showMyDialog3() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text("삭제 하기"),
+          content: Text("정말로 삭제를 하시겠습니까?"),
+          actions: <Widget>[
+            ElevatedButton(
+              onPressed: () {
+                print(selectedUser1);
+
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text("신청이 확인 되었습니다!"),
+                ));
+              },
+              child: Text("신청하기"),
+            )
+          ],
+        );
+      },
+    );
+  }
+
+//-------------------------이 점선 안에 함수는 팝업창(신청 현황)을 위한 함수이다.------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------------------------------------------
+//-------------------------이 점선 안에 함수는 팝업창(새로운 신청)을 위한 함수이다.-----------------------------------------
+  void _showMyDialog4() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text("매칭 완료하기"),
+          content: Text("정말로 매칭을 하시겠습니까?"),
+          actions: <Widget>[
+            ElevatedButton(
+              onPressed: () {
+                print(selectedUser1);
+                _finalmatchTeam();
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text("매칭이 완료 되었습니다."),
+                ));
+              },
+              child: Text("매칭하기"),
+            )
+          ],
+        );
+      },
+    );
+  }
+
+//-------------------------이 점선 안에 함수는 3번째 페이지를 위한 함수이다.------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------------
+  var selectedUser1 = "";
+
+  Widget _itemBuilder1(BuildContext context, IndexPath index) {
+    String user = _elements1.values.toList()[index.section][index.index];
+    var sex = _elements1.values.toList()[index.section][index.index];
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+      child: Card(
+        elevation: 8,
+        child: ListTile(
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 18, vertical: 10.0),
+          leading: CircleAvatar(
+            child: Text(
+              _getInitials1(user),
+              style: TextStyle(color: Colors.white, fontSize: 18),
+            ),
+            backgroundColor: Colors.black,
+          ),
+          title: Text(
+            sex.substring(0, sex.length - 16),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w400),
+          ),
+          onTap: () {
+            setState(() {
+              selectedUser1 = sex;
+            });
+          },
+          trailing: ElevatedButton(
+            child: Text(
+              "신청하기",
+              style:
+                  TextStyle(color: Color.fromARGB(255, 0, 0, 0), fontSize: 20),
+            ),
+            onPressed: () {
+              if (_elements1.keys.toList()[index.section] == "신청 현황") {
+                _showMyDialog3();
+              } else {
+                _showMyDialog4();
+              }
+              setState(() {
+                selectedUser1 = user;
+              });
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _getInitials1(String user) {
+    var buffer = StringBuffer();
+    var split = user.split(" ");
+    for (var s in split) buffer.write(s[0]);
+
+    return buffer.toString().substring(0, split.length);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder(
+        stream: teamStreamController.stream,
+        builder: (context, snapshot) {
+          return GroupListView(
+            sectionsCount: _elements1.keys.toList().length,
+            countOfItemInSection: (int section1) {
+              return _elements1.values.toList()[section1].length;
+            },
+            itemBuilder: _itemBuilder1,
+            groupHeaderBuilder: (BuildContext context1, int section1) {
+              return Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+                child: Text(
+                  _elements1.keys.toList()[section1],
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                ),
+              );
+            },
+            separatorBuilder: (context1, index1) => SizedBox(height: 10),
+            sectionSeparatorBuilder: (context1, section1) =>
+                SizedBox(height: 10),
+          );
+        });
+  }
+}
