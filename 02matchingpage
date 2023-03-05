@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:group_list_view/group_list_view.dart';
 import 'package:univproject/Home_page/Matching_pages/02_matching/centerpage.dart';
 import 'package:univproject/Home_page/Matching_pages/02_matching/leftpage.dart';
+import 'package:univproject/Home_page/Matching_pages/02_matching/rightpage.dart';
 import 'package:univproject/stream.dart';
 
 class matchingPage extends StatefulWidget {
@@ -24,9 +25,7 @@ class _matchingPageState extends State<matchingPage> {
               children: <Widget>[
             Container(child: LeftWidget()),
             NewWidget(),
-            //  Container(
-            //   child: RightWidget()
-            //  )
+            Container(child: RightWidget())
           ]));
     }));
   }
