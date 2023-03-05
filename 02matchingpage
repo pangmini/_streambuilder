@@ -1,0 +1,33 @@
+import 'package:flutter/material.dart';
+import 'package:group_list_view/group_list_view.dart';
+import 'package:univproject/Home_page/Matching_pages/02_matching/centerpage.dart';
+import 'package:univproject/Home_page/Matching_pages/02_matching/leftpage.dart';
+import 'package:univproject/stream.dart';
+
+class matchingPage extends StatefulWidget {
+  @override
+  _matchingPageState createState() => _matchingPageState();
+}
+
+class _matchingPageState extends State<matchingPage> {
+  final _pageController = PageController(initialPage: 1);
+  int _currentIndex = 1;
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder(builder: ((context, snapshot) {
+      return SizedBox.expand(
+          child: PageView(
+              controller: _pageController,
+              onPageChanged: (index) {
+                setState(() => _currentIndex = index);
+              },
+              children: <Widget>[
+            Container(child: LeftWidget()),
+            NewWidget(),
+            //  Container(
+            //   child: RightWidget()
+            //  )
+          ]));
+    }));
+  }
+}
