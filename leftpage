@@ -1,0 +1,121 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import 'package:group_list_view/group_list_view.dart';
+import 'package:univproject/Home_page/Matching_pages/01_matching/Appointment/Check_appointment.dart';
+import 'package:univproject/Main_function/auth_service.dart';
+import 'package:univproject/stream.dart';
+
+class LeftWidget extends StatefulWidget {
+  @override
+  State<LeftWidget> createState() => _LeftWidgetState();
+}
+
+class _LeftWidgetState extends State<LeftWidget> {
+  final _elements = {};
+
+  Future<void> _matchTeam() async {
+    final teamRef = FirebaseFirestore.instance.collection('team');
+    final snapshot = await teamRef.get();
+    final teams = snapshot.docs.map((snapshot) => snapshot.data());
+    // 먼저 user collection에서 사용자의 gender 데이터를 불러옵니다.
+
+    for (var document in teams) {
+      if (document == null || document['tid'] == null) {
+        continue;
+      }
+      final university1 = document['university'];
+      final tid = document['tid'];
+      final group1 = document['group'];
+      if (group1 == AuthService.userGender) {
+        continue;
+      } else if (document['currentMember'] != document['maxMember']) {
+        continue;
+      }
+
+      if (_elements.containsKey(university1)) {
+        _elements[university1]!.add(tid);
+      } else {
+        _elements[university1] = [tid];
+      }
+    }
+  }
+
+//그룹리스트 빌더 아이템빌더 부분 (프론트앤드)
+  Widget _itemBuilder(BuildContext context, IndexPath index) {
+    String user = _elements.values.toList()[index.section][index.index];
+    var sex = _elements.values.toList()[index.section][index.index];
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+      child: Card(
+        elevation: 8,
+        child: ListTile(
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 18, vertical: 10.0),
+          leading: CircleAvatar(
+            child: Text(
+              _getInitials(user),
+              style: TextStyle(color: Colors.white, fontSize: 18),
+            ),
+            backgroundColor: Colors.black,
+          ),
+          title: Text(
+            sex.substring(0, sex.length - 16),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w400),
+          ),
+          trailing: ElevatedButton(
+            child: Text(
+              "신청하기",
+              style:
+                  TextStyle(color: Color.fromARGB(255, 0, 0, 0), fontSize: 20),
+            ),
+            onPressed: () {
+              // _showMyDialog2()
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _getInitials(String user) {
+    var buffer = StringBuffer();
+    var split = user.split(" ");
+    for (var s in split) buffer.write(s[0]);
+
+    return buffer.toString().substring(0, split.length);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _matchTeam();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<Object>(
+        stream: getteamcollectionDoc(),
+        builder: (context, snapshot) {
+          return GroupListView(
+            sectionsCount: _elements.keys.toList().length,
+            countOfItemInSection: (int section) {
+              return _elements.values.toList()[section].length;
+            },
+            itemBuilder: _itemBuilder,
+            groupHeaderBuilder: (BuildContext context, int section) {
+              return Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+                child: Text(
+                  _elements.keys.toList()[section],
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                ),
+              );
+            },
+            separatorBuilder: (context, index) => SizedBox(height: 10),
+            sectionSeparatorBuilder: (context, section) => SizedBox(height: 10),
+          );
+        });
+  }
+}
